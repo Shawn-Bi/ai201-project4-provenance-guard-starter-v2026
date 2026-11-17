@@ -472,19 +472,138 @@ Why it is the worst: the writer did nothing wrong. Someone writing carefully in 
 
 <!-- Your five criteria across three trials. `run_eval.py --label before`. -->
 
+Criteria 1, 2, 3 and 5 were run with `python run_eval.py --label before` (three
+trials each; the report is `results/run_2026-11-17_0156_before.md`). Criterion 4
+cannot be run through `/submit`, so `run_appeal_check.py` runs it: five appeals
+per run, three runs (`results/appeal_check_2026-11-17_0156_before.md`,
+`..._0217_before_run2.md`, `..._0217_before_run3.md`). Every trial of every
+criterion came back with exactly the same numbers as the first, so the three
+columns match.
+
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
+| 1. False positives | Of my 10 own pieces, at most 1 is called "likely AI" | 0 of 10 | 0 of 10 | 0 of 10 | **MET** (mostly because of the unsure band, see below) |
+| 2. Score spread | AI group's average combined score at least 0.5 above the human group's | gap 0.132 | gap 0.132 | gap 0.132 | **MISSED** |
+| 3. Unsure label | Of 10 human pieces with two sentences AI-rewritten, at least 5 come back "unsure" | 8 of 10 | 8 of 10 | 8 of 10 | **MET** |
+| 4. Appeals work | 5 appeals, each: status `under_review` and one new appeal entry in the log | 5 of 5 | 5 of 5 | 5 of 5 | **MET** |
+| 5. Bad input | Missing `text`, whitespace-only `text`, and `text` over 10,000 characters each return 400 with a message, with no crash | 0 of 3 | 0 of 3 | 0 of 3 | **MISSED** |
 
 **Real output from one trial**, pasted as text, naming the file and function
-that produced it:
+that produced it. Everything below is copied from the report files; the
+objects are produced by `run_eval.py::main`, which calls `app.py::submit`.
+
+*Criterion 1 (trial 1, 2 of the 10 pieces: one labelled "human", and the one
+closest to the AI line).* Across all ten the labels were 8 unsure, 2 human and
+0 AI:
 
 ```json
+[
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.25725,
+    "model_score": 0.3506,
+    "style_score": 0.1639,
+    "label": "We think this was most likely written by you. Your post has been submitted.",
+    "sent": "How do you get up to speed in a field you have never worked in before?"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.5229,
+    "model_score": 0.6471,
+    "style_score": 0.3987,
+    "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.",
+    "sent": "Tell me about a time you proactively discovered a problem without bein"
+  }
+]
+```
 
+*Criterion 2 (trial 1, 2 of the 6 texts: `ai02_teamwork`, the only AI text
+called AI, and `ai03_climate`, pushed to 0.5).* AI group average 0.598, human
+group average 0.466, gap 0.132:
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.7696000000000001,
+    "model_score": 0.8519,
+    "style_score": 0.6873,
+    "label": "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it.",
+    "sent": "Technology is an important part of our daily lives. It helps people to"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.5,
+    "model_score": 0.8709,
+    "style_score": 0.5113,
+    "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.",
+    "sent": "Climate change is one of the most pressing challenges facing our world"
+  }
+]
+```
+
+*Criterion 3 (trial 1, 1 of the 10 mixed pieces: `h07` with two sentences
+rewritten). Its original scored `confidence` 0.523 in criterion 1; the rewrite
+scored 0.521.* All ten: 8 unsure, 2 human, 0 AI:
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.52105,
+    "model_score": 0.6561,
+    "style_score": 0.386,
+    "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.",
+    "sent": "Tell me about a time you proactively discovered a problem without bein"
+  }
+]
+```
+
+*Criterion 4 (run 1, the report table, produced by `run_appeal_check.py`).*
+
+```
+| # | content_id | HTTP status | status returned | new appeal entries in log | Result |
+| 1 | `b72b154b-f508-4f08-b020-379c34b5d8e8` | 200 | under_review | 1 | PASS |
+| 2 | `c660386c-c942-4a27-9298-02b8075c6bc3` | 200 | under_review | 1 | PASS |
+| 3 | `8c9542bc-f296-4fd6-8748-f103c99499ae` | 200 | under_review | 1 | PASS |
+| 4 | `4ffd2da1-f0b2-40b8-8f73-905962c1ced5` | 200 | under_review | 1 | PASS |
+| 5 | `ff219342-7322-47e2-9074-4323d366169c` | 200 | under_review | 1 | PASS |
+```
+
+*Criterion 5 (trial 1, all three bad inputs, each sent with a `creator_id`).* The
+first has `status` null because the reply was an HTML error page, not JSON:
+
+```json
+[
+  {
+    "status": null,
+    "error": "JSONDecodeError: Expecting value: line 1 column 1 (char 0)",
+    "sent": "{\"creator_id\": \"eval_bad_missing\"}"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.5302,
+    "model_score": 0.5604,
+    "style_score": 0.5,
+    "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.",
+    "sent": "   \n   "
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.9985999999999999,
+    "model_score": 0.9972,
+    "style_score": 1.0,
+    "label": "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it.",
+    "sent": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps"
+  }
+]
 ```
 
 **Diagnoses**
@@ -503,7 +622,55 @@ that produced it:
 
      Look for a pattern. Five failures on one signal is one problem, not five. -->
 
+**Criterion 2: MISSED. Stage: the combining rule (`scoring.py::combine_signals`),
+on top of a narrow signal two.** The two groups sit in the middle of the scale
+instead of at opposite ends:
 
+| Text | Group | Signal one | Signal two | Combined |
+|---|---|---|---|---|
+| `ai01_remote_work` | AI | 0.6119 | 0.4356 | 0.524 |
+| `ai02_teamwork` | AI | 0.8519 | 0.6873 | 0.770 |
+| `ai03_climate` | AI | 0.8709 | 0.5113 | 0.500 |
+| `2_casual_human` | mine | 0.5409 | 0.2087 | 0.500 |
+| `h05` | mine | 0.4776 | 0.2733 | 0.375 |
+| `h07` | mine | 0.6471 | 0.3987 | 0.523 |
+
+Two things happen. First, my rule returns 0.5 whenever the signals differ by
+more than 0.3. `ai03_climate` has signal one at 0.8709 and signal two at 0.5113
+(a difference of 0.36), so a text that signal one is sure about is pulled down to
+the middle; a plain average would have given it 0.691. Second, signal two does not
+separate the groups much: its range across all six texts is 0.21 to 0.69, and
+only one AI text clears 0.6. So even a plain average would give a gap of about
+0.24, not 0.5. The rule makes the gap smaller (0.132 instead of about 0.24), but
+the target of 0.5 was out of reach of these two signals either way.
+
+**Criterion 5: MISSED. Stage: the route (`app.py::submit`).** `submit()` does no
+input checking. With no `text` field it passes `None` to the model, which raises
+`ValueError`, and the service answers with an HTML error page (a crash, not a
+400). Whitespace-only text is accepted and scored (200, "unsure", 0.53). A 13,500
+character text is also accepted, and because it is one sentence repeated 300
+times it is scored `ai` at 0.999 (signal two at 1.0, since repetition makes the
+sentences identical in length). None of the three is rejected. The same missing
+check explains the nine `500` crashes the script found in the attack run.
+
+**Criterion 1: MET, but honestly, mostly because of the unsure band.** None of my
+ten pieces was called AI, but that is largely because the system says "unsure"
+for almost everything: 8 of the 10 came back unsure and only 2 were called human.
+The highest combined score was 0.523, well under the 0.65 line, so nothing came
+close to being accused. That is a pass on the target as written, but it does not
+show the system recognises human writing; it shows the system rarely commits.
+Criterion 3 passes the same way: all ten mixed pieces got the same labels as
+their originals, so the AI rewrites changed nothing the system could see.
+
+**The pattern: the disagreement rule protects real writers, but costs
+separation.** In the attack run it rescued three real people who a plain average
+would have called AI (FP04, FP06 and FP07), which is what I wanted. The price is
+that scores bunch up near 0.5. Across the 26 texts in criteria 1 to 3, 21 came
+back unsure, 4 human and 1 AI. The same rule that stops a confident signal one
+from accusing a plain writer also stops it from catching AI text when signal two
+disagrees (`ai03_climate`). Fewer wrong accusations and less separation between
+AI and human text come from the same setting; I cannot have one without the
+other.
 
 ---
 

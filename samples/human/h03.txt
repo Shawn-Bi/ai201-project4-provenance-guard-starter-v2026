@@ -1,0 +1,6 @@
+How do you get up to speed in a field you have never worked in before?
+S: During my conversational agent internship at Xincheng AI, I had to independently design a multi-turn conversation flow for the first time. I had to define the persona, task boundaries, and exception branches myself.
+T: I needed to produce a first version ready for review within two weeks.
+A: I first studied competing products in the same category, tried them from a user's perspective, analyzed and shortlisted them, and selected strong examples. I broke down conversation recordings and failure cases, listing "what users actually say" instead of "what ideal users would say." I also consulted two conversational design resources and internal review feedback, and wrote the boundaries as a checklist: what the agent could answer and what had to be handed to a human. I built the smallest flow to get the main path working first, then added exception branches rather than drawing the entire flowchart at the beginning.
+R: The first version passed review. I then iterated on the prompts using real conversation data, improving the professionalism, consistency, and safety of responses.
+L: For unfamiliar work, the approach of finding real examples first, defining boundaries next, and expanding scope last proved effective.

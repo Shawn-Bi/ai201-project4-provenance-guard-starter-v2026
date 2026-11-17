@@ -1,0 +1,5 @@
+How do you handle a problem after something goes wrong with a project?
+S: In my AI ordering assistant product, I made the wording more conversational during a prompt iteration to make the agent friendlier. After deployment, however, the order-confirmation stage became longer and key details in some orders were more easily derailed.
+T: My approach was to contain the damage first, identify the cause, and then restore performance.
+A: I rolled back to the previous version based on the scope of the impact rather than continuing to apply patches. Comparing the change against the regression suite helped me identify the problem: the conversational rewrite weakened the emphasis on confirmation statements, and the model treated some small talk as confirmation. After that, I made the confirmation statements fixed templates, separated small talk from confirmation, and added two sets of targeted test cases.
+R: The metrics returned to their pre-change levels that same day. After the corrected version was deployed, all 60 regression cases passed.

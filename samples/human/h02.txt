@@ -1,0 +1,10 @@
+What do you do when you disagree with a colleague or manager about a product or technical decision?
+S: At ZBS, the product team wanted the AI tool to cover more scenarios as quickly as possible, while the engineering team was concerned that insufficient data and evaluation would make launch risky. I was in the middle, and customers were waiting for me to provide a launch date. We could not keep delaying.
+T: My task was to propose a launch plan that both product and engineering could sign off on: maintain speed while protecting essential safeguards, and give customers a credible timeline.
+A: First, I translated the disagreement into verifiable questions, listing which scenarios had test coverage and which did not. Customer Q&A was backed by 60 regression cases, but the CRM scenarios were not. Based on that table, I proposed a phased launch: release the high-frequency, validated customer Q&A first; route low-frequency, complex CRM cases through human review, with AI providing suggestions but not writing directly to the database. I put the evaluation results, review criteria, and rollback conditions on a one-page document and confirmed each item during the review, turning the disagreement into items that could be signed off individually.
+R: The plan was adopted, the phased launch proceeded on schedule without a large-scale rollback, and customers received a clear timeline.
+L: First turn disagreements into questions of data and scope, and only then discuss positions. Arguments without evidence will not persuade anyone.
+Follow-up questions:
+How did you justify it? Answer: I used the test coverage table rather than saying "I think." I translated the abstract concept of "risk" into specific scenarios and numbers.
+What was the final decision, and what did you think of it? Answer: A phased launch. I agreed with it because, given the information available at the time, it was the best trade-off between speed and safeguards.
+What if your proposal had been rejected? Answer: I would follow the decision but document the risks and review metrics, then use data in the next retrospective.
