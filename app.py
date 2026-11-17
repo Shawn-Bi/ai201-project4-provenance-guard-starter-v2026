@@ -201,15 +201,15 @@ def submit():
     """
     payload = request.get_json(silent=True) or {}
 
-    # TODO: delete this and build the route.
+    # Milestone 3, pass 1: a hardcoded answer, to prove the route responds.
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /submit isn't built yet — see the TODO in app.py.",
-        "you_sent": {
-            "text_length": len(payload.get("text", "")),
-            "creator_id": payload.get("creator_id"),
-        },
-    }), 501
+        "content_id": str(uuid.uuid4()),
+        "guess": "unsure",
+        "confidence": 0.5,
+        "label": "placeholder",
+        "model_score": 0.5,
+        "style_score": 0.5,
+    })
 
 
 @app.post("/appeal")
