@@ -306,25 +306,38 @@ challenged, and in what order.
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 5 per minute, 50 per day (`config.py`: `RATE_LIMIT_PER_MINUTE`,
+`RATE_LIMIT_PER_DAY`; applied to `POST /submit` in `app.py`)
 
 **Why those numbers and not others:**
-<!-- Think about two people: a real writer submitting their own work a few
-     times an hour, and a script sending a thousand variations to map your
-     thresholds. Your numbers have to be liveable for the first and hostile to
-     the second. -->
+A real writer who spots a typo will resubmit straight away, so they need a few
+tries of headroom in one minute; 5 leaves room for that. A script trying to
+submit thousands of variations to map where the thresholds sit gets stopped
+after 5 in a minute and 50 in a day.
 
-**What a caller counts as:** <!-- per address, or per creator_id? They fail
-differently — one script can look like a thousand callers, and one household
-can look like one. -->
+**What a caller counts as:** A `creator_id`. The limiter uses the `creator_id`
+in the request body, and only falls back to the caller's IP address when the body
+has no usable `creator_id` (`app.py::rate_limit_key`). Counts are kept in memory,
+so restarting the service resets them.
 
 **The run of status codes when I pushed past it:**
 
-<!-- python run_attacks.py --flood 15 -->
+`python run_attacks.py --flood 15` sent 15 submissions as `flood_tester`
+(output saved in `results/flood_2026-11-17_0117.md`). 10 of the 15 were rate
+limited:
 
 ```
-
+200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
 ```
+
+Each rejected request is also written to the audit log, so the burst is visible
+afterwards (`event: rejected`, `reason: rate_limited`, `limit: 5 per 1 minute`).
+
+**Known hole:** Because requests are counted per `creator_id`, changing the
+`creator_id` gets a fresh allowance. A script that sends every request under a
+new `creator_id` is never limited, and it looks like a crowd of different
+callers. Counting by IP address would not fix this cleanly either, since one
+household or office can look like one caller. I have not fixed this.
 
 ---
 
