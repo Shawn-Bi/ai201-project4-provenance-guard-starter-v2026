@@ -256,14 +256,41 @@ def appeal():
     to the person on the other end. It's the only thing standing between a
     wrong accusation and nothing at all.
     """
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
 
-    # TODO: delete this and build the route.
+    # 1. Both fields are required, and must be non-empty text.
+    if not (isinstance(content_id, str) and content_id.strip()
+            and isinstance(reasoning, str) and reasoning.strip()):
+        return jsonify({
+            "error": "bad_request",
+            "message": "Both content_id and reasoning are required.",
+        }), 400
+
+    # 2. The id has to exist in the log.
+    entries = audit.entries_for(content_id)
+    if not entries:
+        return jsonify({
+            "error": "not_found",
+            "message": "No submission found with that content_id.",
+        }), 404
+
+    # 3. Record the appeal beside the original decision (append-only).
+    audit.log_appeal(
+        content_id=content_id,
+        creator_id=entries[0].get("creator_id"),
+        reasoning=reasoning,
+    )
+
+    # 4. Confirm to the writer.
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id,
+        "status": "under_review",
+        "message": "Thanks. Your appeal has been received and a person will review it.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────
