@@ -17,8 +17,8 @@
 ## 两个接口的格式
 /submit（交文章）
 填：text（文章内容）、creator_id（作者ID）
-退回：content_id（编号）、guess（猜测）、confidence（总分）、label（那句人话）
+退回：content_id（编号）、guess（猜测）、confidence（总分）、label（那句人话）、model_score（老师A的分）、style_score（老师B的分）
 
 /appeal（申诉）
-填：content_id（编号）、reason（作者写的申诉理由）
+填：content_id（编号）、reasoning（作者写的申诉理由）
 退回：content_id、status: under_review（人工审核中）
