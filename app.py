@@ -212,11 +212,9 @@ def submit():
     style_score = stylometry.style_signal(text)
     combined_score = scoring.combine_signals(model_score, style_score)
 
-    # Milestone 4: both signals and the combined score are real now; the
-    # guess and label are still placeholders until Milestone 5.
-    guess = "unsure"
+    # Milestone 5: the combined score becomes a guess and a label a person can read.
+    guess, label = scoring.score_to_label(combined_score)
     confidence = combined_score
-    label = "placeholder"
 
     audit.log_decision(
         content_id=content_id,
