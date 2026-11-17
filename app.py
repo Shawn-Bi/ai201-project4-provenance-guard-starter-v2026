@@ -200,6 +200,8 @@ def submit():
     a malformed input is one of the most common real failures there is.
     """
     import detector
+    import scoring
+    import stylometry
 
     payload = request.get_json(silent=True) or {}
     text = payload.get("text")
@@ -207,12 +209,14 @@ def submit():
 
     content_id = str(uuid.uuid4())
     model_score = detector.model_signal(text)
+    style_score = stylometry.style_signal(text)
+    combined_score = scoring.combine_signals(model_score, style_score)
 
-    # Milestone 3: only signal one is real; the rest are still placeholders.
+    # Milestone 4: both signals and the combined score are real now; the
+    # guess and label are still placeholders until Milestone 5.
     guess = "unsure"
-    confidence = 0.5
+    confidence = combined_score
     label = "placeholder"
-    style_score = 0.5
 
     audit.log_decision(
         content_id=content_id,
@@ -220,6 +224,7 @@ def submit():
         guess=guess,
         model_score=model_score,
         style_score=style_score,
+        combined_score=combined_score,
         label=label,
     )
 

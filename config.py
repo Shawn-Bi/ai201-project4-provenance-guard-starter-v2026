@@ -57,6 +57,12 @@ DETECTOR_MAX_TOKENS = 400
 WEIGHT_MODEL_SIGNAL = 0.5
 WEIGHT_STYLE_SIGNAL = 0.5
 
+# If the two signals differ by MORE than this, they disagree too much to
+# average: combine_signals returns DISAGREEMENT_SCORE (the middle of the
+# "unsure" band) instead.
+DISAGREEMENT_THRESHOLD = 0.3
+DISAGREEMENT_SCORE = 0.5
+
 
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────
 # Where one label becomes another. Scores run 0.0 (confidently human) to 1.0
