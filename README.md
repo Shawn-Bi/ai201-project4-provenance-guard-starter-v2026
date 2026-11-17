@@ -313,8 +313,8 @@ challenged, and in what order.
 **Moment 4**
 
 - *What I asked for:* Samples of my own writing to run criterion 1 on.
-- *What came back:* A set of ten samples. Before testing, I noticed that one of
-  them was an AI translation, so it was not really my own writing.
+- *What came back:* AI pointed out that one sample was identical to text I had
+  earlier said was AI-translated, so I swapped it for a piece I wrote by hand.
 - *What I changed:* I replaced it, because criterion 1 is about my own writing
   and the result would have meant nothing otherwise.
 
