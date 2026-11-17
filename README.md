@@ -346,19 +346,124 @@ household or office can look like one caller. I have not fixed this.
 <!-- Every attack with its outcome and a held-or-broke mark.
      `run_attacks.py --label before` produces the table. -->
 
+56 attacks were run against the service with rate limiting on (5 per minute,
+50 per day). The full report, with the JSON that came back for every attack, is
+`results/attack_run_2026-11-17_0123.md`. Result: **24 BROKE, 32 HELD**. Nine
+of the BROKE were found by the script (a 5xx response); the other 15 are my
+judgement.
 
+How I marked them: an evasion is BROKE when AI-derived text did not get the AI
+label; a false positive is BROKE when genuine human text got the AI label; a
+malformed input is BROKE when the service crashed, or accepted what criterion 5
+says must return 400 (whitespace-only text, text over 10,000 characters); a flood
+is HELD when the rate limit held. EV05 is marked HELD: a person rewrote it
+heavily, so its content now belongs to a person, and the system has no way to
+measure how much of a text was rewritten. RQ10 and RQ11 first returned 429
+because earlier requests with no `creator_id` had used up that IP address's
+allowance; I waited 65 seconds and re-sent them on their own, and both returned
+500, so they are BROKE.
+
+| ID | Family | What it targets | Status | Guess | Score | Verdict |
+|---|---|---|---|---|---|---|
+| EV01 | evasion | signal two: typos raise word variety | 200 | unsure | 0.500 | BROKE |
+| EV02 | evasion | signal two: broken-up sentences raise length spread | 200 | unsure | 0.452 | BROKE |
+| EV03 | evasion | signal two: a pasted quotation changes the shape | 200 | unsure | 0.500 | BROKE |
+| EV04 | evasion | signal one: unusual words raise perplexity | 200 | unsure | 0.561 | BROKE |
+| EV05 | evasion | both signals: heavy human editing pass | 200 | human | 0.303 | HELD |
+| EV06 | evasion | signal two: one very long sentence and one very short | 200 | unsure | 0.467 | BROKE |
+| EV07 | evasion | signal two: padding with punctuation | 200 | unsure | 0.500 | BROKE |
+| EV08 | evasion | signal one: text below the token window | 200 | unsure | 0.377 | HELD |
+| EV09 | evasion | both: AI text with a human opening paragraph bolted on | 200 | unsure | 0.500 | BROKE |
+| EV10 | evasion | signal two: repeated stanza structure | 200 | ai | 0.880 | HELD |
+| FP01 | false_positive | plain, clear human writing with no flourishes | 200 | unsure | 0.560 | HELD |
+| FP02 | false_positive | human writing in a formal register | 200 | ai | 0.684 | BROKE |
+| FP03 | false_positive | a non-native English speaker writing carefully | 200 | ai | 0.704 | BROKE |
+| FP04 | false_positive | a student essay written to a rubric | 200 | unsure | 0.500 | HELD |
+| FP05 | false_positive | technical documentation written by a person | 200 | ai | 0.730 | BROKE |
+| FP06 | false_positive | a person imitating a formal template | 200 | unsure | 0.500 | HELD |
+| FP07 | false_positive | human writing that repeats a phrase deliberately | 200 | unsure | 0.500 | HELD |
+| FP08 | false_positive | very short genuine human submission | 200 | unsure | 0.374 | HELD |
+| PI01 | prompt_injection | instruction to ignore the check | 200 | unsure | 0.398 | HELD |
+| PI02 | prompt_injection | instruction disguised as a system message | 200 | human | 0.220 | BROKE |
+| PI03 | prompt_injection | instruction wrapped in the writer's voice | 200 | unsure | 0.475 | HELD |
+| PI04 | prompt_injection | attempt to make the label text hostile | 200 | unsure | 0.398 | HELD |
+| PI05 | prompt_injection | attempt to inject into the audit log | 200 | unsure | 0.500 | HELD |
+| PI06 | prompt_injection | instruction plus real human text | 200 | unsure | 0.526 | HELD |
+| MF01 | malformed | text is only whitespace | 200 | unsure | 0.353 | BROKE |
+| MF02 | malformed | text is a single character | 500 | — | — | BROKE |
+| MF03 | malformed | text is control characters | 200 | unsure | 0.500 | HELD |
+| MF04 | malformed | text is only punctuation | 200 | unsure | 0.500 | HELD |
+| MF05 | malformed | text is a very long single word | 200 | unsure | 0.500 | HELD |
+| MF06 | malformed | text is emoji only | 200 | unsure | 0.500 | HELD |
+| MF07 | malformed | text is right-to-left script | 200 | unsure | 0.500 | HELD |
+| MF08 | malformed | text is 60,000 characters | 200 | unsure | 0.500 | BROKE |
+| RQ01 | malformed | no text field at all | 500 | — | — | BROKE |
+| RQ02 | malformed | no creator_id | 200 | unsure | 0.370 | HELD |
+| RQ03 | malformed | text is a number | 500 | — | — | BROKE |
+| RQ04 | malformed | text is a list | 500 | — | — | BROKE |
+| RQ05 | malformed | text is null | 500 | — | — | BROKE |
+| RQ06 | malformed | creator_id is an object | 200 | unsure | 0.500 | HELD |
+| RQ07 | malformed | body is a JSON array, not an object | 500 | — | — | BROKE |
+| RQ08 | malformed | body is unparseable JSON | 500 | — | — | BROKE |
+| RQ09 | malformed | body is empty | 500 | — | — | BROKE |
+| RQ10 | malformed | body is form-encoded, not JSON | 429 | — | — | BROKE |
+| RQ11 | malformed | body is JSON claiming to be plain text | 429 | — | — | BROKE |
+| RQ12 | malformed | deeply nested JSON | 500 | — | — | BROKE |
+| FL01_01 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_02 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_03 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_04 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_05 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_06 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_07 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_08 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_09 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_10 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_11 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_12 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
 
 **Ten audit log entries from the run**
 
 <!-- Choose entries that show the interesting failures, not the ten easiest. -->
 
 ```json
-
+{"timestamp": "2026-11-17T06:23:04+00:00", "content_id": "7ecc5ae6-c569-4108-b1e3-cd88f94e4e9a", "creator_id": "attacker_FP03", "guess": "ai", "model_score": 0.8051, "style_score": 0.6024, "combined_score": 0.7037500000000001, "label": "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:04+00:00", "content_id": "da4916f5-241c-4b25-b49f-f98930696cd9", "creator_id": "attacker_FP02", "guess": "ai", "model_score": 0.7387, "style_score": 0.6302, "combined_score": 0.68445, "label": "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:04+00:00", "content_id": "dbbc2b5d-2738-403b-9b99-5052d92289e6", "creator_id": "attacker_FP04", "guess": "unsure", "model_score": 0.8329, "style_score": 0.4911, "combined_score": 0.5, "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:02+00:00", "content_id": "0c8cee91-c69c-48b9-afec-21ea1f416bd5", "creator_id": "attacker_EV05", "guess": "human", "model_score": 0.3212, "style_score": 0.2856, "combined_score": 0.3034, "label": "We think this was most likely written by you. Your post has been submitted.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:01+00:00", "content_id": "8a06464c-3b5b-4b44-a6eb-0b160c34d25d", "creator_id": "attacker_EV01", "guess": "unsure", "model_score": 0.1635, "style_score": 0.5185, "combined_score": 0.5, "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:03+00:00", "content_id": "7e1f5666-71c3-4d93-9771-bebf6bba5c7d", "creator_id": "attacker_EV10", "guess": "ai", "model_score": 0.9792, "style_score": 0.7812, "combined_score": 0.8802, "label": "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:05+00:00", "content_id": "1eb0a393-9edb-4f78-b7a4-3abd85ffb37d", "creator_id": "attacker_PI02", "guess": "human", "model_score": 0.2044, "style_score": 0.2346, "combined_score": 0.2195, "label": "We think this was most likely written by you. Your post has been submitted.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:06+00:00", "content_id": "c8ff6435-27aa-4b88-af77-0934914b4609", "creator_id": "attacker_PI05", "guess": "unsure", "model_score": 0.6401, "style_score": 0.0714, "combined_score": 0.5, "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:08+00:00", "content_id": "2c7f5bd9-812b-458e-b35c-700909735a2d", "creator_id": "attacker_MF05", "guess": "unsure", "model_score": 0.9976, "style_score": 0.5, "combined_score": 0.5, "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.", "status": "decided"}
+{"timestamp": "2026-11-17T06:23:14+00:00", "creator_id": "attacker_flood", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute"}
 ```
+
+Why these ten, in order:
+
+1. `attacker_FP03`: a careful non-native speaker, called AI (0.704). The worst outcome.
+2. `attacker_FP02`: formal human writing, called AI (0.684).
+3. `attacker_FP04`: a student essay. Signal one said 0.8329, signal two said 0.4911; they differ by 0.342, so the combining rule returned 0.5. A plain average (0.662) would have called this writer AI.
+4. `attacker_EV05`: a heavy human edit of AI text, labelled "human" (0.303).
+5. `attacker_EV01`: typos added to AI text. Signal one dropped to 0.1635 and the pair disagreed, so the score was forced to 0.5 (unsure).
+6. `attacker_EV10`: repeated structure. The one evasion that backfired and was caught as AI (0.880).
+7. `attacker_PI02`: a fake "SYSTEM" message. Labelled "human" (0.2195), but because the odd tokens raised perplexity, not because the instruction was obeyed.
+8. `attacker_PI05`: an attempt to inject JSON into the log. The entry is clean; the submitted text is never written to the log.
+9. `attacker_MF05`: one very long word. Signal one said 0.9976 but signal two stayed at 0.5; the rule held the score at 0.5.
+10. `attacker_flood`: the rate limit rejecting a request (the 429 case). Rejections are logged with `event: rejected`.
 
 **The single worst outcome** — the one I'd least want to explain to a writer
 whose work got caught by it:
 
+**FP03: a careful non-native English speaker, called AI.**
+
+The text (written by a person):
+
+> I want to describe my experience of the first month in this country. The weather was very different from my home. I did not expect the rain to continue for so many days. My colleagues were kind and they helped me to find an apartment. I am still learning the words that people use in the office. Sometimes I do not understand the jokes. But I am happy that I came here and I think it was a good decision for my family.
+
+What came back (`content_id` `7ecc5ae6-c569-4108-b1e3-cd88f94e4e9a`): `model_score` 0.8051, `style_score` 0.6024, combined 0.70375, `guess` "ai", with the label "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it."
+
+Why it is the worst: the writer did nothing wrong. Someone writing carefully in a second language sticks to vocabulary they are sure of and keeps sentences short and plain, which is exactly what signal one rewards as "predictable" and signal two reads as "even". Both signals agree (they differ by only 0.2027, under the 0.3 limit), so the disagreement rule that rescued FP04, FP06 and FP07 never fires. The only remedy this writer has is to click Appeal, and an appeal only moves the item to `under_review`. This is the person the project was supposed to protect.
 
 
 ---
