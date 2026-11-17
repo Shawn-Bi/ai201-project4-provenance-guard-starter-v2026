@@ -300,6 +300,24 @@ challenged, and in what order.
   signals differ by more than 0.3, treat it as unsure" rather than a plain
   average, so one over-confident signal cannot accuse a real writer on its own.
 
+**Moment 3**
+
+- *What I asked for:* I asked Claude Code to suggest HELD or BROKE for each
+  attack, judged by what that attack was trying to do.
+- *What came back:* It suggested BROKE for EV05, the heavily edited text, because
+  AI-derived text ended up labelled "human".
+- *What I changed:* I marked EV05 HELD. After a heavy rewrite the content belongs
+  to a person, and the system cannot measure how much of a text was rewritten, so
+  calling it a failure to catch AI would be the wrong lesson.
+
+**Moment 4**
+
+- *What I asked for:* Samples of my own writing to run criterion 1 on.
+- *What came back:* A set of ten samples. Before testing, I noticed that one of
+  them was an AI translation, so it was not really my own writing.
+- *What I changed:* I replaced it, because criterion 1 is about my own writing
+  and the result would have meant nothing otherwise.
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -676,22 +694,180 @@ other.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** I added input checks to `app.py::submit()` and changed
+nothing else (not the signals, the combining rule, the thresholds or the rate
+limit). Before anything is scored, `submit()` now refuses, with HTTP 400, an `error`
+code and one plain sentence, any request where:
 
-**Which diagnosis pointed at it:**
+- the body is not a JSON object (`invalid_body`);
+- `text` is missing or `null` (`missing_text`);
+- `text` is not a string (`text_not_string`);
+- `text` is empty once spaces are stripped (`empty_text`);
+- `text` is longer than 10,000 characters (`text_too_long`);
+- `text` is too short for the model to score (`text_too_short`), caught from the
+  `ValueError` that `detector.model_signal` raises.
+
+Every one of these is also written to the audit log with `audit.log_rejection`,
+so a refused request leaves a trace (`event: rejected`, `reason: <code>`).
+
+**Which diagnosis pointed at it:** The criterion 5 diagnosis (stage: the route,
+`app.py::submit`, which did no input checking). The same missing check explained
+all nine `500` crashes the script found in the first attack run, plus the two
+inputs `criteria.md` says must be refused but were accepted: whitespace-only text
+(MF01) and a 60,000-character text (MF08). One stage, one cause, thirteen BROKE
+attacks and one missed criterion. I chose this over criterion 2 because criterion
+2 needs a better second signal, which is a much larger change.
+
+**Before and after, side by side**
+
+Criteria (`run_eval.py`, three trials each; criterion 4 by `run_appeal_check.py`):
+
+| Criterion | Before | After | Verdict before | Verdict after |
+|---|---|---|---|---|
+| 1. At most 1 of my 10 called AI | 0 of 10 (all 3 trials) | 0 of 10 (all 3 trials) | MET | MET |
+| 2. AI group 0.5 above human group | gap 0.132 | gap 0.132 | MISSED | MISSED |
+| 3. At least 5 of 10 mixed pieces unsure | 8 of 10 | 8 of 10 | MET | MET |
+| 4. Five appeals all `under_review` and logged | 5 of 5 (3 runs) | 5 of 5 (1 run) | MET | MET |
+| 5. Three bad inputs return 400 | 0 of 3 (all 3 trials) | **3 of 3 (all 3 trials)** | MISSED | **MET** |
+
+Attack set, by family (the full per-attack results are in the two report files):
+
+| Family | Attacks | BROKE before | BROKE after | HELD before | HELD after |
+|---|---|---|---|---|---|
+| evasion | 10 | 7 | 7 | 3 | 3 |
+| false_positive | 8 | 3 | 3 | 5 | 5 |
+| prompt_injection | 6 | 1 | 1 | 5 | 5 |
+| malformed | 20 | 13 | **0** | 7 | **20** |
+| flood_same_creator | 12 | 0 | 0 | 12 | 12 |
+| **Total** | **56** | **24** | **11** | **32** | **45** |
 
 ### Attack Run — After
 
 <!-- Same format. `run_attacks.py --label after` -->
 
+The same 56 attacks, rerun after the fix with rate limiting on. The full report
+is `results/attack_run_2026-11-17_0232_after.md`. Result: **11 BROKE, 45 HELD**
+(first run: 24 BROKE, 32 HELD). The script found no crashes this time (0 auto-marked
+BROKE, down from 9). I marked them with the same rule as before. RQ10 and RQ11
+again returned `429` in the run, because earlier requests with no `creator_id`
+had used up that IP address's allowance; as before, I waited 65 seconds and sent
+each again on its own, and both returned `400` (`invalid_body`), so they are HELD.
 
+| ID | Family | What it targets | Status | Guess | Score | Verdict |
+|---|---|---|---|---|---|---|
+| EV01 | evasion | signal two: typos raise word variety | 200 | unsure | 0.500 | BROKE |
+| EV02 | evasion | signal two: broken-up sentences raise length spread | 200 | unsure | 0.452 | BROKE |
+| EV03 | evasion | signal two: a pasted quotation changes the shape | 200 | unsure | 0.500 | BROKE |
+| EV04 | evasion | signal one: unusual words raise perplexity | 200 | unsure | 0.561 | BROKE |
+| EV05 | evasion | both signals: heavy human editing pass | 200 | human | 0.303 | HELD |
+| EV06 | evasion | signal two: one very long sentence and one very short | 200 | unsure | 0.467 | BROKE |
+| EV07 | evasion | signal two: padding with punctuation | 200 | unsure | 0.500 | BROKE |
+| EV08 | evasion | signal one: text below the token window | 200 | unsure | 0.377 | HELD |
+| EV09 | evasion | both: AI text with a human opening paragraph bolted on | 200 | unsure | 0.500 | BROKE |
+| EV10 | evasion | signal two: repeated stanza structure | 200 | ai | 0.880 | HELD |
+| FP01 | false_positive | plain, clear human writing with no flourishes | 200 | unsure | 0.560 | HELD |
+| FP02 | false_positive | human writing in a formal register | 200 | ai | 0.684 | BROKE |
+| FP03 | false_positive | a non-native English speaker writing carefully | 200 | ai | 0.704 | BROKE |
+| FP04 | false_positive | a student essay written to a rubric | 200 | unsure | 0.500 | HELD |
+| FP05 | false_positive | technical documentation written by a person | 200 | ai | 0.730 | BROKE |
+| FP06 | false_positive | a person imitating a formal template | 200 | unsure | 0.500 | HELD |
+| FP07 | false_positive | human writing that repeats a phrase deliberately | 200 | unsure | 0.500 | HELD |
+| FP08 | false_positive | very short genuine human submission | 200 | unsure | 0.374 | HELD |
+| PI01 | prompt_injection | instruction to ignore the check | 200 | unsure | 0.398 | HELD |
+| PI02 | prompt_injection | instruction disguised as a system message | 200 | human | 0.220 | BROKE |
+| PI03 | prompt_injection | instruction wrapped in the writer's voice | 200 | unsure | 0.475 | HELD |
+| PI04 | prompt_injection | attempt to make the label text hostile | 200 | unsure | 0.398 | HELD |
+| PI05 | prompt_injection | attempt to inject into the audit log | 200 | unsure | 0.500 | HELD |
+| PI06 | prompt_injection | instruction plus real human text | 200 | unsure | 0.526 | HELD |
+| MF01 | malformed | text is only whitespace | 400 | — | — | HELD |
+| MF02 | malformed | text is a single character | 400 | — | — | HELD |
+| MF03 | malformed | text is control characters | 200 | unsure | 0.500 | HELD |
+| MF04 | malformed | text is only punctuation | 200 | unsure | 0.500 | HELD |
+| MF05 | malformed | text is a very long single word | 200 | unsure | 0.500 | HELD |
+| MF06 | malformed | text is emoji only | 200 | unsure | 0.500 | HELD |
+| MF07 | malformed | text is right-to-left script | 200 | unsure | 0.500 | HELD |
+| MF08 | malformed | text is 60,000 characters | 400 | — | — | HELD |
+| RQ01 | malformed | no text field at all | 400 | — | — | HELD |
+| RQ02 | malformed | no creator_id | 200 | unsure | 0.370 | HELD |
+| RQ03 | malformed | text is a number | 400 | — | — | HELD |
+| RQ04 | malformed | text is a list | 400 | — | — | HELD |
+| RQ05 | malformed | text is null | 400 | — | — | HELD |
+| RQ06 | malformed | creator_id is an object | 200 | unsure | 0.500 | HELD |
+| RQ07 | malformed | body is a JSON array, not an object | 400 | — | — | HELD |
+| RQ08 | malformed | body is unparseable JSON | 400 | — | — | HELD |
+| RQ09 | malformed | body is empty | 400 | — | — | HELD |
+| RQ10 | malformed | body is form-encoded, not JSON | 429 | — | — | HELD |
+| RQ11 | malformed | body is JSON claiming to be plain text | 429 | — | — | HELD |
+| RQ12 | malformed | deeply nested JSON | 400 | — | — | HELD |
+| FL01_01 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_02 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_03 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_04 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_05 | flood_same_creator | 20 rapid submissions from one creator | 200 | unsure | 0.500 | HELD |
+| FL01_06 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_07 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_08 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_09 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_10 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_11 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_12 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
 
-**Did it help, and how do I know:**
+**Ten audit log entries from the run**
 
-<!-- Widening the unsure band usually fixes one problem and creates another.
-     Reporting that trade honestly is worth full credit. -->
+```json
+{"timestamp": "2026-11-17T07:32:31+00:00", "creator_id": "attacker_MF01", "event": "rejected", "status": "rejected", "reason": "empty_text"}
+{"timestamp": "2026-11-17T07:32:31+00:00", "creator_id": "attacker_MF02", "event": "rejected", "status": "rejected", "reason": "text_too_short"}
+{"timestamp": "2026-11-17T07:32:33+00:00", "creator_id": "attacker_MF08", "event": "rejected", "status": "rejected", "reason": "text_too_long"}
+{"timestamp": "2026-11-17T07:32:33+00:00", "creator_id": "attacker_RQ01", "event": "rejected", "status": "rejected", "reason": "missing_text"}
+{"timestamp": "2026-11-17T07:32:33+00:00", "creator_id": "attacker_RQ03", "event": "rejected", "status": "rejected", "reason": "text_not_string"}
+{"timestamp": "2026-11-17T07:32:33+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_body"}
+{"timestamp": "2026-11-17T07:32:34+00:00", "creator_id": "attacker_flood", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute"}
+{"timestamp": "2026-11-17T07:32:30+00:00", "content_id": "f12ad226-97a4-4729-a648-3019c4f1d560", "creator_id": "attacker_FP03", "guess": "ai", "model_score": 0.8051, "style_score": 0.6024, "combined_score": 0.7037500000000001, "label": "Our system thinks AI may have been involved in writing this. This is an automatic guess and may be wrong. If you wrote it yourself, click Appeal and a person will review it.", "status": "decided"}
+{"timestamp": "2026-11-17T07:32:28+00:00", "content_id": "af4dcb3b-c1ad-4e42-b4ba-8f0789722146", "creator_id": "attacker_EV05", "guess": "human", "model_score": 0.3212, "style_score": 0.2856, "combined_score": 0.3034, "label": "We think this was most likely written by you. Your post has been submitted.", "status": "decided"}
+{"timestamp": "2026-11-17T07:32:27+00:00", "content_id": "a8a176e2-f588-4197-8199-72ca6f010d50", "creator_id": "attacker_EV01", "guess": "unsure", "model_score": 0.1635, "style_score": 0.5185, "combined_score": 0.5, "label": "We can't tell who wrote this. It will be shown normally and won't be flagged. If you have questions, you can appeal at any time.", "status": "decided"}
+```
 
+What the ten show, in order:
 
+1. `attacker_MF01`: whitespace-only text, now refused with reason `empty_text`. Before, it was scored and logged as a decision.
+2. `attacker_MF02`: a single character, now `text_too_short`. Before, it crashed the route with a 500 and left no log line at all.
+3. `attacker_MF08`: 60,000 characters, now `text_too_long`. Before, it was scored.
+4. `attacker_RQ01`: no `text` field, now `missing_text`. Before, a 500 crash with no log line.
+5. `attacker_RQ03`: `text` is a number, now `text_not_string`.
+6. A body that is not a JSON object (a list, empty or unparseable). There is no `creator_id` to read, so it is logged as `unknown` (`invalid_body`).
+7. `attacker_flood`: the rate limit still rejecting (the 429 case); unchanged by this fix.
+8. `attacker_FP03`: still called AI (0.704). The fix did not touch this.
+9. `attacker_EV05`: still labelled human (0.303). Unchanged.
+10. `attacker_EV01`: typos added to AI text, still "unsure" (0.5). Unchanged.
+
+Entries 1 to 6 are new: the same inputs used to crash or pass through unlogged, and now each leaves a line saying why it was refused.
+
+**Did it help, and how do I know:** It fixed what it was aimed at. All 13
+malformed inputs that were BROKE now return 400 with a message (the attack
+report shows 400 for 11 of them; RQ10 and RQ11 returned 400 when sent again on their own), and
+criterion 5 went from 0 of 3 to 3 of 3 in all three trials. I also checked that
+it changed nothing else: 36 attacks returned 200 in both runs, and all 36 have
+exactly the same guess and score as before.
+
+It also shows how little this was. The 11 attacks that are still BROKE are all
+about the signals, not the route: 7 evasions, 3 false positives (FP02, FP03,
+FP05) and 1 prompt injection (PI02). Criterion 2 is still missed at 0.132.
+FP03, the writer I least want to explain this to, is still called AI. A route
+that no longer crashes does not make the verdicts any better.
+
+The trade this fix creates, and what it costs:
+
+- **A writer with a long piece now gets a refusal instead of a verdict.** The
+  10,000-character limit is the number from criterion 5. Before, a 13,500-character
+  text that repeats one sentence was scored `ai` at 0.999 (signal two reads
+  repetition as maximally machine-like). Now it is just refused. That removes an
+  odd result, but it hides the way signal two reacts to repetition; it does not fix it.
+- **A 400 still uses up the rate limit.** Requests without a usable `creator_id`
+  share one allowance per IP address, which is why RQ10 and RQ11 were still
+  `429` in the run.
+- **"Too short" is whatever the model refuses.** It is decided by the tokenizer
+  (fewer than three tokens), not by a number I chose, so the line sits in an odd place:
+  a one-word submission is refused, a short three-word one is scored.
 
 ---
 
@@ -700,14 +876,93 @@ other.
 <!-- For each attack still getting through and each criterion still missed:
      what you'd do, and why you stopped. -->
 
+Eleven of the 56 attacks are still BROKE, and criterion 2 is still MISSED. None
+of them is a problem with the route any more. They are all about what the two
+signals can and cannot see, and they fall into five groups.
 
+**1. Shape tricks on signal two: EV02, EV03, EV06, EV07.** Each one changes the
+shape of AI text without changing what it says (broken-up sentences, a pasted
+quotation, one very long sentence beside a short one, punctuation padding), and
+each pushes `style_score` down to between 0.25 and 0.36.
+*What I'd do:* make signal two harder to move: use the median instead of the
+standard deviation for sentence length, ignore very short fragments, count how
+many different punctuation marks appear rather than how many, and cap how much a
+single quoted span can count.
+*Why I stopped:* the attack set has only ten evasion cases, so anything I tune
+now is fitted to them. These changes could also hurt real writers who use short
+sentences (FP07, FP08).
+
+**2. Odd words fool signal one: EV01, EV04, PI02.** Perplexity goes up with any
+unusual token, whoever wrote it. Typos took EV01's `model_score` down to 0.1635;
+rare words took EV04 to 0.6114, which ended at 0.561, just under the 0.65 line;
+and the fake "SYSTEM" message in PI02 scored "human" (0.2195), not because the
+system obeyed it (it cannot read instructions) but because the strange tokens made
+the text surprising. One mechanism, three attacks.
+*What I'd do:* clean the text before scoring (spell-check, strip obvious markup)
+or score each sentence separately and take the median, so a few odd tokens cannot
+dominate. For EV04 alone I could lower the AI line from 0.65 to about 0.55, but
+that would also accuse FP01, who scores 0.560.
+*Why I stopped:* cleaning typos changes how the system treats the mistakes of real
+and non-native writers, which could make false accusations worse, and
+sentence-by-sentence scoring is a redesign of `detector.py`.
+
+**3. A human opening bolted onto AI text: EV09.** Signal one said 0.704 and signal
+two said 0.320. They differ by 0.384, so the combining rule returned 0.5.
+*What I'd do:* score the text in paragraphs and report "mixed" when the paragraphs
+disagree.
+*Why I stopped:* the detector only reads the first 400 tokens
+(`DETECTOR_MAX_TOKENS`), so later paragraphs are not scored at all; chunking means
+reworking `detector.py` and a longer wait per request.
+
+**4. Real writers still called AI: FP02, FP03, FP05.** Both signals agree on these
+(signal one 0.74, 0.81 and 0.80; signal two 0.63, 0.60 and 0.66), so the
+disagreement rule cannot help, and the combined scores of 0.684, 0.704 and 0.730 sit just above the 0.65 line.
+*What I'd do:* the cheap change is to raise `AI_THRESHOLD` from 0.65 to about 0.75.
+All three would become "unsure", and in my own data only `ai02_teamwork` (0.770)
+and EV10 (0.880) would still be called AI. The lasting fix is a first signal that
+does not read plain, careful writing as machine-made, for example one calibrated
+against the kind of text being submitted.
+*Why I stopped:* the threshold change fixes these three by making the system catch
+almost nothing, and I would be choosing 0.75 by looking at the same attacks I am
+trying to fix. A better signal needs more than the small local model I have.
+
+**5. Criterion 2: MISSED, gap 0.132 against a target of 0.5.**
+*What I'd do:* not lower the target. A missed number stays where it is. I would
+work on the signals instead. The two groups bunch near 0.5 for two reasons: signal
+two only ranges from 0.21 to 0.69 across the six texts, and the disagreement rule
+drags texts where the signals differ by more than 0.3 down to 0.5. Raising that
+limit from 0.3 to 0.4 would let `ai03_climate` (0.36 apart, plain average 0.691)
+be called AI, but it would also bring back FP04 (0.342 apart, plain average
+0.662), who a plain average accuses.
+*Why I stopped:* even a plain average gives a gap of only about 0.24, so no setting
+reaches 0.5; it needs a better second signal. With six texts in this test, any
+value I chose would be fitted to them.
+
+**Known holes I have not fixed**
+
+- **Changing `creator_id` gets around the rate limit.** The limit counts requests
+  per `creator_id`, which the sender chooses. A script that sends each request
+  under a new id is never limited and looks like a crowd of different people.
+  *What I'd do:* also count per IP address, or tie submissions to real accounts.
+  *Why I stopped:* this project has no accounts, so every identity is self-declared,
+  and counting by IP alone would punish households and offices that share one.
+  The counts also live in memory, so a restart resets them.
+- **The system cannot tell how much of a text was rewritten.** EV05, a heavy human
+  rewrite, came back "human" (0.303), and in criterion 3 all ten pieces with two
+  AI-rewritten sentences got the same labels as their originals. A final text does
+  not carry the proportion of who wrote what.
+  *What I'd do:* compare against the original draft or version history.
+  *Why I stopped:* this service never sees a draft, so there is nothing to compare.
+  It is also why I marked EV05 HELD.
 
 **The trade I'd make if this ran for real:**
 
 <!-- Two sentences. Fewer wrong accusations means more AI text getting through.
      Say which way you'd go and WHO PAYS FOR IT. -->
 
-
+If this ran for real, I would lean toward wrongly accusing fewer people. The cost
+is that more AI-written articles would be let through, which readers and careful
+authors would pay for, but a wrongly accused author loses more than that.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 

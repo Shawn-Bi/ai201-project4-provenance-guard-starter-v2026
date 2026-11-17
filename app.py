@@ -203,12 +203,44 @@ def submit():
     import scoring
     import stylometry
 
-    payload = request.get_json(silent=True) or {}
+    max_chars = 10000
+
+    def reject(creator, reason, message):
+        """Answer 400 with one sentence, and leave a trace in the audit log."""
+        audit.log_rejection(
+            creator_id=creator if isinstance(creator, str) and creator else "unknown",
+            reason=reason,
+        )
+        return jsonify({"error": reason, "message": message}), 400
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return reject(None, "invalid_body",
+                      "The request body must be a JSON object.")
+
     text = payload.get("text")
     creator_id = payload.get("creator_id")
 
+    if text is None:
+        return reject(creator_id, "missing_text",
+                      "The text field is required.")
+    if not isinstance(text, str):
+        return reject(creator_id, "text_not_string",
+                      "The text field must be a string.")
+    if not text.strip():
+        return reject(creator_id, "empty_text",
+                      "The text field cannot be empty or only spaces.")
+    if len(text) > max_chars:
+        return reject(creator_id, "text_too_long",
+                      f"The text is too long. The limit is {max_chars} characters.")
+
     content_id = str(uuid.uuid4())
-    model_score = detector.model_signal(text)
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError:
+        # model_signal raises ValueError only when the text is too short to score.
+        return reject(creator_id, "text_too_short",
+                      "The text is too short to check. Please submit a few sentences.")
     style_score = stylometry.style_signal(text)
     combined_score = scoring.combine_signals(model_score, style_score)
 
